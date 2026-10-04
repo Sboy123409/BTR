@@ -8,8 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -264,7 +264,7 @@ private fun StatusBanner(lockedCount: Int, total: Int, nextUnlock: Long?) {
     }
 }
 
-/** The emphasised "lock everything" action, in the poster's colours. */
+/** The emphasised "lock everything" action, in the poster's colours. Collapsed to one row until tapped. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GoDarkCard(
@@ -274,62 +274,89 @@ private fun GoDarkCard(
     onLockAll: (minutes: Int) -> Unit,
 ) {
     var minutes by rememberSaveable { mutableIntStateOf(60) }
-    Box(
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "goDarkChevron")
+    Column(
         Modifier
             .fillMaxWidth()
-            .background(GoDarkGradient, RoundedCornerShape(24.dp))
-            .padding(20.dp),
+            .clip(RoundedCornerShape(20.dp))
+            .background(GoDarkGradient)
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = PosterCream, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
                     "GO DARK",
                     color = PosterCream,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = 4.sp,
+                    letterSpacing = 3.sp,
                 )
                 Text(
                     if (allLockedUntil != null) "Everything's locked until ${formatTime(allLockedUntil)}"
                     else if (appCount == 1) "Lock your app now" else "Lock all $appCount apps at once",
                     color = PosterCream.copy(alpha = 0.85f),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                options.forEach { option ->
-                    FilterChip(
-                        selected = minutes == option,
-                        onClick = { minutes = option },
-                        label = { Text(formatMinutes(option)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color.Transparent,
-                            labelColor = PosterCream,
-                            selectedContainerColor = PosterCream,
-                            selectedLabelColor = PosterBlack,
-                        ),
-                        border = BorderStroke(1.dp, PosterCream.copy(alpha = 0.7f)),
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = PosterCream,
+                modifier = Modifier.rotate(chevronRotation),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(
+                Modifier.padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { option ->
+                        FilterChip(
+                            selected = minutes == option,
+                            onClick = { minutes = option },
+                            label = { Text(formatMinutes(option)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = Color.Transparent,
+                                labelColor = PosterCream,
+                                selectedContainerColor = PosterCream,
+                                selectedLabelColor = PosterBlack,
+                            ),
+                            border = BorderStroke(1.dp, PosterCream.copy(alpha = 0.7f)),
+                        )
+                    }
+                }
+                Button(
+                    onClick = {
+                        onLockAll(minutes)
+                        expanded = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PosterCream,
+                        contentColor = PosterBlack,
+                    ),
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (allLockedUntil != null) "Extend all: ${formatMinutes(minutes)} from now"
+                        else "Lock all for ${formatMinutes(minutes)}",
+                        fontWeight = FontWeight.Bold,
                     )
                 }
-            }
-            Button(
-                onClick = { onLockAll(minutes) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PosterCream,
-                    contentColor = PosterBlack,
-                ),
-            ) {
-                Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (allLockedUntil != null) "Extend all: ${formatMinutes(minutes)} from now"
-                    else "Lock all for ${formatMinutes(minutes)}",
-                    fontWeight = FontWeight.Bold,
-                )
             }
         }
     }

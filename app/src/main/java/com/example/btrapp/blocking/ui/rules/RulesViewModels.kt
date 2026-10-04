@@ -14,20 +14,18 @@ import com.example.btrapp.blocking.data.RuleType
 import com.example.btrapp.blocking.data.RuleWithApps
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class RulesViewModel(private val repository: BlockingRepository) : ViewModel() {
 
     val rules: StateFlow<List<RuleWithApps>> = repository.rules
+        .map { rules -> rules.filter { it.rule.type == RuleType.SCHEDULE } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val blockedApps: StateFlow<List<BlockedApp>> = repository.blockedApps
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    init {
-        viewModelScope.launch { repository.deleteEndedSessions() }
-    }
 
     fun setEnabled(id: Long, enabled: Boolean) {
         viewModelScope.launch { repository.setRuleEnabled(id, enabled) }
@@ -35,6 +33,24 @@ class RulesViewModel(private val repository: BlockingRepository) : ViewModel() {
 
     fun delete(id: Long) {
         viewModelScope.launch { repository.deleteRule(id) }
+    }
+}
+
+/** "Lock now" / "Go dark" sessions, newest first. */
+class SessionsViewModel(private val repository: BlockingRepository) : ViewModel() {
+
+    val sessions: StateFlow<List<RuleWithApps>> = repository.rules
+        .map { rules ->
+            rules.filter { it.rule.type == RuleType.SESSION }
+                .sortedByDescending { it.rule.startAt ?: 0 }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val blockedApps: StateFlow<List<BlockedApp>> = repository.blockedApps
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        viewModelScope.launch { repository.pruneOldSessions() }
     }
 }
 
@@ -46,8 +62,6 @@ class RuleEditorViewModel(
     private val ruleId: Long = savedStateHandle.get<Long>(ARG_RULE_ID) ?: NEW_RULE
     val isNew = ruleId == NEW_RULE
 
-    var type by mutableStateOf(RuleType.SCHEDULE)
-    var sessionMinutes by mutableIntStateOf(60)
     var daysMask by mutableIntStateOf(WEEKDAYS)
     var startMinute by mutableIntStateOf(9 * 60)
     var endMinute by mutableIntStateOf(17 * 60)
@@ -63,14 +77,10 @@ class RuleEditorViewModel(
             // New rules start empty so each rule covers only the apps picked for it.
             if (existing == null) return@launch
             val rule = existing.rule
-            type = rule.type
             enabled = rule.enabled
             rule.daysMask?.let { daysMask = it }
             rule.startMinute?.let { startMinute = it }
             rule.endMinute?.let { endMinute = it }
-            if (rule.startAt != null && rule.endAt != null) {
-                sessionMinutes = ((rule.endAt - rule.startAt) / 60_000).toInt()
-            }
             selectedPackages = existing.packageNames
         }
     }
@@ -78,7 +88,7 @@ class RuleEditorViewModel(
     val validationError: String?
         get() = when {
             selectedPackages.isEmpty() -> "Pick at least one app"
-            type == RuleType.SCHEDULE && daysMask == 0 -> "Pick at least one day"
+            daysMask == 0 -> "Pick at least one day"
             else -> null
         }
 
@@ -100,27 +110,14 @@ class RuleEditorViewModel(
     fun save(onSaved: () -> Unit) {
         if (validationError != null) return
         val id = if (isNew) 0L else ruleId
-        val rule = when (type) {
-            // Saving a session (re)starts it from now.
-            RuleType.SESSION -> {
-                val now = System.currentTimeMillis()
-                LockRule(
-                    id = id,
-                    type = type,
-                    enabled = enabled,
-                    startAt = now,
-                    endAt = now + sessionMinutes * 60_000L,
-                )
-            }
-            RuleType.SCHEDULE -> LockRule(
-                id = id,
-                type = type,
-                enabled = enabled,
-                daysMask = daysMask,
-                startMinute = startMinute,
-                endMinute = endMinute,
-            )
-        }
+        val rule = LockRule(
+            id = id,
+            type = RuleType.SCHEDULE,
+            enabled = enabled,
+            daysMask = daysMask,
+            startMinute = startMinute,
+            endMinute = endMinute,
+        )
         viewModelScope.launch {
             repository.saveRule(rule, selectedPackages)
             onSaved()

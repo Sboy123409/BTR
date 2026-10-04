@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -30,18 +31,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.btrapp.blocking.data.LockRule
-import com.example.btrapp.blocking.data.RuleType
 import com.example.btrapp.blocking.domain.LockPolicy
 import com.example.btrapp.blocking.ui.common.containerFactory
 import com.example.btrapp.blocking.ui.common.formatDays
 import com.example.btrapp.blocking.ui.common.formatMinuteOfDay
-import com.example.btrapp.blocking.ui.common.formatTime
 import com.example.btrapp.blocking.ui.common.rememberNow
 
 @Composable
 fun RulesScreen(
     onEditRule: (Long) -> Unit,
     onNewRule: () -> Unit,
+    onOpenSessions: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RulesViewModel = viewModel(
         factory = containerFactory { c, _ -> RulesViewModel(c.blockingRepository) }
@@ -53,16 +53,27 @@ fun RulesScreen(
     val now = rememberNow(rules)
 
     Box(modifier.fillMaxSize()) {
-        if (rules.isEmpty()) {
-            Text(
-                "No lock rules yet. Add a schedule like \"Weekdays 9–5\", or use Lock now on Home.",
-                modifier = Modifier.padding(24.dp),
-            )
-        }
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Schedules",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = onOpenSessions) {
+                        Icon(Icons.Default.Lock, contentDescription = "Session log")
+                    }
+                }
+            }
+            if (rules.isEmpty()) {
+                item {
+                    Text("No schedules yet. Add one like \"Weekdays 9–5\". For a one-off lock, use Go Dark on Home.")
+                }
+            }
             items(rules, key = { it.rule.id }) { item ->
                 val rule = item.rule
                 Card(
@@ -75,7 +86,7 @@ fun RulesScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(ruleTitle(rule, now), style = MaterialTheme.typography.titleMedium)
+                            Text(ruleTitle(rule), style = MaterialTheme.typography.titleMedium)
                             val active = rule.enabled && LockPolicy.activeUntil(rule, now) != null
                             if (active) {
                                 Text(
@@ -113,12 +124,6 @@ fun RulesScreen(
     }
 }
 
-private fun ruleTitle(rule: LockRule, now: Long): String = when (rule.type) {
-    RuleType.SESSION -> {
-        val end = rule.endAt ?: 0
-        if (end > now) "Session until ${formatTime(end)}" else "Session ended"
-    }
-    RuleType.SCHEDULE ->
-        "${formatDays(rule.daysMask ?: 0)} · " +
-            "${formatMinuteOfDay(rule.startMinute ?: 0)}–${formatMinuteOfDay(rule.endMinute ?: 0)}"
-}
+private fun ruleTitle(rule: LockRule): String =
+    "${formatDays(rule.daysMask ?: 0)} · " +
+        "${formatMinuteOfDay(rule.startMinute ?: 0)}–${formatMinuteOfDay(rule.endMinute ?: 0)}"

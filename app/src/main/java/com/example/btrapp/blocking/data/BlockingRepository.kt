@@ -14,6 +14,8 @@ import java.time.ZoneId
 
 data class RuleWithApps(val rule: LockRule, val packageNames: Set<String>)
 
+const val SESSION_LOG_DAYS = 30
+
 class BlockingRepository(
     private val dao: BlockingDao,
     scope: CoroutineScope,
@@ -71,7 +73,9 @@ class BlockingRepository(
 
     suspend fun deleteRule(id: Long) = dao.deleteRule(id)
 
-    suspend fun deleteEndedSessions() = dao.deleteEndedSessions(clock())
+    /** Ended sessions stay around as the session log; only ones older than [keepDays] are dropped. */
+    suspend fun pruneOldSessions(keepDays: Int = SESSION_LOG_DAYS) =
+        dao.deleteEndedSessions(clock() - keepDays * 24 * 60 * 60_000L)
 
     suspend fun unlocksToday(zone: ZoneId = ZoneId.systemDefault()): Int {
         val startOfDay = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()

@@ -38,6 +38,7 @@ import com.example.btrapp.blocking.ui.home.HomeScreen
 import com.example.btrapp.blocking.ui.rules.RuleEditorScreen
 import com.example.btrapp.blocking.ui.rules.RuleEditorViewModel
 import com.example.btrapp.blocking.ui.rules.RulesScreen
+import com.example.btrapp.blocking.ui.rules.SessionsScreen
 import com.example.btrapp.ui.theme.MyApplicationTheme
 import com.example.btrapp.ui.welcome.WelcomeScreen
 
@@ -78,6 +79,8 @@ private const val RULE_EDITOR_ROUTE = "rule/{${RuleEditorViewModel.ARG_RULE_ID}}
 
 private fun ruleEditorRoute(id: Long) = "rule/$id"
 
+private const val SESSIONS_ROUTE = "sessions"
+
 @Composable
 fun BtrApp() {
     val navController = rememberNavController()
@@ -86,7 +89,7 @@ fun BtrApp() {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != RULE_EDITOR_ROUTE) {
+            if (currentRoute != RULE_EDITOR_ROUTE && currentRoute != SESSIONS_ROUTE) {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -115,7 +118,11 @@ fun BtrApp() {
                     onNewRule = {
                         navController.navigate(ruleEditorRoute(RuleEditorViewModel.NEW_RULE))
                     },
+                    onOpenSessions = { navController.navigate(SESSIONS_ROUTE) },
                 )
+            }
+            composable(SESSIONS_ROUTE) {
+                SessionsScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 RULE_EDITOR_ROUTE,

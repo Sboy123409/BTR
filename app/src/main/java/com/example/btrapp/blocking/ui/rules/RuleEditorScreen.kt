@@ -18,9 +18,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -32,20 +29,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.btrapp.blocking.data.RuleType
 import com.example.btrapp.blocking.domain.LockPolicy
 import com.example.btrapp.blocking.ui.common.AppIcon
 import com.example.btrapp.blocking.ui.common.containerFactory
 import com.example.btrapp.blocking.ui.common.dayLabel
 import com.example.btrapp.blocking.ui.common.formatMinuteOfDay
-import com.example.btrapp.blocking.ui.common.formatMinutes
-import com.example.btrapp.blocking.ui.common.isDebuggable
-
-private val sessionOptions = listOf(15, 30, 60, 120, 240, 480)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +47,6 @@ fun RuleEditorScreen(
         factory = containerFactory { c, handle -> RuleEditorViewModel(c.blockingRepository, handle) }
     ),
 ) {
-    val context = LocalContext.current
     val blockedApps by viewModel.blockedApps.collectAsStateWithLifecycle()
     var editingStart by rememberSaveable { mutableStateOf<Boolean?>(null) }
 
@@ -68,69 +58,38 @@ fun RuleEditorScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            if (viewModel.isNew) "New lock rule" else "Edit lock rule",
+            if (viewModel.isNew) "New schedule" else "Edit schedule",
             style = MaterialTheme.typography.headlineSmall,
         )
 
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            RuleType.entries.forEachIndexed { index, type ->
-                SegmentedButton(
-                    selected = viewModel.type == type,
-                    onClick = { viewModel.type = type },
-                    shape = SegmentedButtonDefaults.itemShape(index, RuleType.entries.size),
-                ) {
-                    Text(if (type == RuleType.SESSION) "One-off session" else "Recurring schedule")
-                }
+        Text("Days", style = MaterialTheme.typography.titleMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (1..7).forEach { day ->
+                FilterChip(
+                    selected = LockPolicy.isDayOn(viewModel.daysMask, day),
+                    onClick = { viewModel.toggleDay(day) },
+                    label = { Text(dayLabel(day)) },
+                )
             }
         }
-
-        when (viewModel.type) {
-            RuleType.SESSION -> {
-                Text("Lock for", style = MaterialTheme.typography.titleMedium)
-                val options =
-                    if (context.isDebuggable()) listOf(1) + sessionOptions else sessionOptions
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    options.forEach { minutes ->
-                        FilterChip(
-                            selected = viewModel.sessionMinutes == minutes,
-                            onClick = { viewModel.sessionMinutes = minutes },
-                            label = { Text(formatMinutes(minutes)) },
-                        )
-                    }
-                }
-                Text("Starts as soon as you save.", style = MaterialTheme.typography.bodyMedium)
+        Text("Time", style = MaterialTheme.typography.titleMedium)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = { editingStart = true }) {
+                Text(formatMinuteOfDay(viewModel.startMinute))
             }
-            RuleType.SCHEDULE -> {
-                Text("Days", style = MaterialTheme.typography.titleMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (1..7).forEach { day ->
-                        FilterChip(
-                            selected = LockPolicy.isDayOn(viewModel.daysMask, day),
-                            onClick = { viewModel.toggleDay(day) },
-                            label = { Text(dayLabel(day)) },
-                        )
-                    }
-                }
-                Text("Time", style = MaterialTheme.typography.titleMedium)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedButton(onClick = { editingStart = true }) {
-                        Text(formatMinuteOfDay(viewModel.startMinute))
-                    }
-                    Text("to")
-                    OutlinedButton(onClick = { editingStart = false }) {
-                        Text(formatMinuteOfDay(viewModel.endMinute))
-                    }
-                }
-                when {
-                    viewModel.endMinute < viewModel.startMinute ->
-                        Text("Runs overnight into the next day.", style = MaterialTheme.typography.bodyMedium)
-                    viewModel.endMinute == viewModel.startMinute ->
-                        Text("Locks for a full 24 hours.", style = MaterialTheme.typography.bodyMedium)
-                }
+            Text("to")
+            OutlinedButton(onClick = { editingStart = false }) {
+                Text(formatMinuteOfDay(viewModel.endMinute))
             }
+        }
+        when {
+            viewModel.endMinute < viewModel.startMinute ->
+                Text("Runs overnight into the next day.", style = MaterialTheme.typography.bodyMedium)
+            viewModel.endMinute == viewModel.startMinute ->
+                Text("Locks for a full 24 hours.", style = MaterialTheme.typography.bodyMedium)
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
