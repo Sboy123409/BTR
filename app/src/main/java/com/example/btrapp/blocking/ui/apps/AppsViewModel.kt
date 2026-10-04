@@ -22,9 +22,10 @@ data class AppsUiState(
     val loading: Boolean = true,
     val rows: List<AppRow> = emptyList(),
     val toAdd: List<InstalledApp> = emptyList(),
-    val toRemove: List<InstalledApp> = emptyList(),
+    /** True when every launchable app is already on the block list. */
+    val allBlocked: Boolean = false,
 ) {
-    val pendingCount: Int get() = toAdd.size + toRemove.size
+    val pendingCount: Int get() = toAdd.size
 }
 
 class AppsViewModel(
@@ -50,16 +51,15 @@ class AppsViewModel(
                 val isBlocked = it.packageName in blockedSet
                 AppRow(it, blocked = isBlocked, checked = isBlocked != (it.packageName in toggled))
             }
-            val rows = all
+            // Only apps not yet blocked; they're managed (and removed) from Home once added.
+            val unblocked = all.filter { !it.blocked }
+            val rows = unblocked
                 .filter { q.isBlank() || it.app.label.contains(q.trim(), ignoreCase = true) }
-                // Blocked apps first, then alphabetical (already sorted by the provider).
-                // Sorted by saved state so rows don't jump while picking.
-                .sortedByDescending { it.blocked }
             AppsUiState(
                 loading = false,
                 rows = rows,
-                toAdd = all.filter { it.pending && it.checked }.map { it.app },
-                toRemove = all.filter { it.pending && !it.checked }.map { it.app },
+                toAdd = unblocked.filter { it.checked }.map { it.app },
+                allBlocked = unblocked.isEmpty(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppsUiState())
 
@@ -77,7 +77,6 @@ class AppsViewModel(
         viewModelScope.launch {
             val s = state.first { !it.loading }
             s.toAdd.forEach { repository.setBlocked(it.packageName, it.label, true) }
-            s.toRemove.forEach { repository.setBlocked(it.packageName, it.label, false) }
             toggled.value = emptySet()
         }
     }

@@ -6,7 +6,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,14 +26,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -46,10 +53,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -64,8 +74,14 @@ import com.example.btrapp.blocking.ui.common.formatMinutes
 import com.example.btrapp.blocking.ui.common.formatTime
 import com.example.btrapp.blocking.ui.common.isDebuggable
 import com.example.btrapp.blocking.ui.common.rememberNow
+import com.example.btrapp.ui.theme.PosterBlack
+import com.example.btrapp.ui.theme.PosterCream
+import com.example.btrapp.ui.theme.PosterDeepRed
+import com.example.btrapp.ui.theme.PosterRed
 
 private val lockNowOptions = listOf(15, 30, 60, 120, 240)
+
+private val GoDarkGradient = Brush.linearGradient(listOf(PosterRed, Color(0xFF7A0E12), PosterDeepRed))
 
 @Composable
 fun HomeScreen(
@@ -86,8 +102,8 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
     var showDisclosure by rememberSaveable { mutableStateOf(false) }
-    var showLockAll by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var removing by remember { mutableStateOf<BlockedApp?>(null) }
     val options = remember {
         if (context.isDebuggable()) listOf(1) + lockNowOptions else lockNowOptions
     }
@@ -95,7 +111,7 @@ fun HomeScreen(
     val statuses = blockedApps.associate {
         it.packageName to LockPolicy.status(it.packageName, now, snapshot)
     }
-    val lockedCount = statuses.values.count { it is LockStatus.Locked }
+    val lockedUntils = statuses.values.filterIsInstance<LockStatus.Locked>().map { it.until }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -118,21 +134,45 @@ fun HomeScreen(
             }
         }
 
-        item { StatusHeader(lockedCount = lockedCount, total = blockedApps.size) }
+        if (blockedApps.isNotEmpty()) {
+            item {
+                StatusBanner(
+                    lockedCount = lockedUntils.size,
+                    total = blockedApps.size,
+                    nextUnlock = lockedUntils.minOrNull(),
+                )
+            }
+            item {
+                GoDarkCard(
+                    appCount = blockedApps.size,
+                    allLockedUntil = if (lockedUntils.size == blockedApps.size) lockedUntils.minOrNull() else null,
+                    options = options,
+                    onLockAll = { minutes -> viewModel.lockApps(minutes, blockedApps.map { it.packageName }) },
+                )
+            }
+        }
 
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Your apps",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                Text("Your apps", style = MaterialTheme.typography.titleMedium)
                 if (blockedApps.isNotEmpty()) {
-                    TextButton(onClick = { showLockAll = true }) {
-                        Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Lock all")
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Text(
+                            "${blockedApps.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
                     }
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onManageApps) {
+                    Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add apps")
                 }
             }
         }
@@ -160,19 +200,24 @@ fun HomeScreen(
                     viewModel.lockApps(minutes, listOf(app.packageName))
                     expanded = expanded - app.packageName
                 },
+                onRemove = { removing = app },
             )
         }
     }
 
-    if (showLockAll) {
-        LockAllDialog(
-            appCount = blockedApps.size,
-            options = options,
-            onDismiss = { showLockAll = false },
-            onConfirm = { minutes ->
-                viewModel.lockApps(minutes, blockedApps.map { it.packageName })
-                showLockAll = false
+    removing?.let { app ->
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text("Remove ${app.label}?") },
+            text = { Text("It'll also be taken out of any lock rules.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.unblock(app)
+                    expanded = expanded - app.packageName
+                    removing = null
+                }) { Text("Remove") }
             },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } },
         )
     }
 
@@ -194,43 +239,98 @@ fun HomeScreen(
     }
 }
 
+/** Slim notification-style strip summarising what's locked. */
 @Composable
-private fun StatusHeader(lockedCount: Int, total: Int) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
-        shape = RoundedCornerShape(24.dp),
+private fun StatusBanner(lockedCount: Int, total: Int, nextUnlock: Long?) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(50),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(Modifier.weight(1f)) {
+            Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(16.dp))
+            Text(
+                if (nextUnlock == null) "Nothing locked. Stay sharp."
+                else "$lockedCount of $total locked · next unlock ${formatTime(nextUnlock)}",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+}
+
+/** The emphasised "lock everything" action, in the poster's colours. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GoDarkCard(
+    appCount: Int,
+    allLockedUntil: Long?,
+    options: List<Int>,
+    onLockAll: (minutes: Int) -> Unit,
+) {
+    var minutes by rememberSaveable { mutableIntStateOf(60) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(GoDarkGradient, RoundedCornerShape(24.dp))
+            .padding(20.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column {
                 Text(
-                    "$lockedCount of $total",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
+                    "GO DARK",
+                    color = PosterCream,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 4.sp,
                 )
                 Text(
-                    when {
-                        total == 0 -> "Add apps to start building discipline."
-                        lockedCount == 0 -> "Nothing locked right now. Tap an app to lock it."
-                        lockedCount == total -> "Everything's locked. Stay strong."
-                        else -> if (lockedCount == 1) "app locked" else "apps locked"
-                    },
+                    if (allLockedUntil != null) "Everything's locked until ${formatTime(allLockedUntil)}"
+                    else if (appCount == 1) "Lock your app now" else "Lock all $appCount apps at once",
+                    color = PosterCream.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(40.dp),
-            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.forEach { option ->
+                    FilterChip(
+                        selected = minutes == option,
+                        onClick = { minutes = option },
+                        label = { Text(formatMinutes(option)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color.Transparent,
+                            labelColor = PosterCream,
+                            selectedContainerColor = PosterCream,
+                            selectedLabelColor = PosterBlack,
+                        ),
+                        border = BorderStroke(1.dp, PosterCream.copy(alpha = 0.7f)),
+                    )
+                }
+            }
+            Button(
+                onClick = { onLockAll(minutes) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PosterCream,
+                    contentColor = PosterBlack,
+                ),
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (allLockedUntil != null) "Extend all: ${formatMinutes(minutes)} from now"
+                    else "Lock all for ${formatMinutes(minutes)}",
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -244,9 +344,12 @@ private fun AppLockCard(
     options: List<Int>,
     onToggle: () -> Unit,
     onLock: (minutes: Int) -> Unit,
+    onRemove: () -> Unit,
 ) {
     var minutes by rememberSaveable(app.packageName) { mutableIntStateOf(60) }
     val chevronRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+    // An emergency unlock is temporary, so the app still counts as locked for removal.
+    val locked = status !is LockStatus.Unlocked
 
     ElevatedCard(onClick = onToggle, shape = RoundedCornerShape(20.dp)) {
         Row(
@@ -278,7 +381,7 @@ private fun AppLockCard(
             exit = shrinkVertically() + fadeOut(),
         ) {
             Column(
-                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 HorizontalDivider()
@@ -303,6 +406,15 @@ private fun AppLockCard(
                     Icon(Icons.Default.Lock, contentDescription = null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Lock for ${formatMinutes(minutes)}")
+                }
+                // Removing a locked app would be an easy way around the lock.
+                TextButton(
+                    onClick = onRemove,
+                    enabled = !locked,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Text(if (locked) "Can't remove while locked" else "Remove from block list")
                 }
             }
         }
@@ -332,35 +444,4 @@ private fun StatusPill(status: LockStatus) {
             Text(text, style = MaterialTheme.typography.labelMedium)
         }
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun LockAllDialog(
-    appCount: Int,
-    options: List<Int>,
-    onDismiss: () -> Unit,
-    onConfirm: (minutes: Int) -> Unit,
-) {
-    var minutes by rememberSaveable { mutableIntStateOf(60) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-        title = { Text(if (appCount == 1) "Lock 1 app" else "Lock all $appCount apps") },
-        text = {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                options.forEach { option ->
-                    FilterChip(
-                        selected = minutes == option,
-                        onClick = { minutes = option },
-                        label = { Text(formatMinutes(option)) },
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(minutes) }) { Text("Lock for ${formatMinutes(minutes)}") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }

@@ -22,4 +22,8 @@ class HomeViewModel(private val repository: BlockingRepository) : ViewModel() {
         if (packages.isEmpty()) return
         viewModelScope.launch { repository.startSession(minutes, packages) }
     }
+
+    fun unblock(app: BlockedApp) {
+        viewModelScope.launch { repository.setBlocked(app.packageName, app.label, false) }
+    }
 }

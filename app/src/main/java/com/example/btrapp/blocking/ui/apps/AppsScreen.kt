@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -67,7 +68,23 @@ fun AppsScreen(
             }
             return@Column
         }
-        LazyColumn(Modifier.weight(1f)) {
+        if (state.rows.isEmpty()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (state.allBlocked) "All your apps are already on the block list."
+                    else "No apps match \"${query.trim()}\".",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else LazyColumn(Modifier.weight(1f)) {
             items(state.rows, key = { it.app.packageName }) { row ->
                 Row(
                     modifier = Modifier
@@ -82,7 +99,7 @@ fun AppsScreen(
                         Text(row.app.label, style = MaterialTheme.typography.bodyLarge)
                         if (row.pending) {
                             Text(
-                                if (row.checked) "Will be added" else "Will be removed",
+                                "Will be added",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -105,7 +122,7 @@ fun AppsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        if (state.pendingCount == 1) "1 change" else "${state.pendingCount} changes",
+                        if (state.pendingCount == 1) "Add 1 app" else "Add ${state.pendingCount} apps",
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = viewModel::discardChanges) { Text("Discard") }
@@ -118,7 +135,7 @@ fun AppsScreen(
     if (reviewing && state.pendingCount > 0) {
         AlertDialog(
             onDismissRequest = { reviewing = false },
-            title = { Text("Update block list?") },
+            title = { Text("Add to block list?") },
             text = {
                 Column(
                     Modifier
@@ -126,15 +143,12 @@ fun AppsScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ChangeSection("Add to block list", state.toAdd)
-                    ChangeSection("Remove from block list", state.toRemove)
-                    if (state.toRemove.isNotEmpty()) {
-                        Text(
-                            "Removed apps are also taken out of any lock rules.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    ChangeSection(state.toAdd)
+                    Text(
+                        "You can remove apps later from their card on Home.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = {
@@ -151,9 +165,7 @@ fun AppsScreen(
 }
 
 @Composable
-private fun ChangeSection(title: String, apps: List<InstalledApp>) {
-    if (apps.isEmpty()) return
-    Text(title, style = MaterialTheme.typography.titleSmall)
+private fun ChangeSection(apps: List<InstalledApp>) {
     apps.forEach { app ->
         Row(
             verticalAlignment = Alignment.CenterVertically,
