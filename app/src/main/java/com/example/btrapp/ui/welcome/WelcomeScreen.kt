@@ -38,9 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.btrapp.R
-import com.example.btrapp.ui.theme.PosterBlack
-import com.example.btrapp.ui.theme.PosterCream
-import com.example.btrapp.ui.theme.PosterRed
+import com.example.btrapp.core.ui.theme.PosterBlack
+import com.example.btrapp.core.ui.theme.PosterCream
+import com.example.btrapp.core.ui.theme.PosterRed
 import kotlinx.coroutines.delay
 
 /** First-launch brand screen, built around the BTR poster art. Always dark. */

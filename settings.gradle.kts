@@ -24,3 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "My Application"
 include(":app")
+include(":core")
+include(":feature:applock")
+include(":feature:habits")
+include(":feature:avatar")

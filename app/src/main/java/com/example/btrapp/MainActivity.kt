@@ -6,8 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
@@ -26,20 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.example.btrapp.blocking.ui.apps.AppsScreen
-import com.example.btrapp.blocking.ui.history.HistoryScreen
-import com.example.btrapp.blocking.ui.home.HomeScreen
-import com.example.btrapp.blocking.ui.rules.RuleEditorScreen
-import com.example.btrapp.blocking.ui.rules.RuleEditorViewModel
-import com.example.btrapp.blocking.ui.rules.RulesScreen
-import com.example.btrapp.blocking.ui.rules.SessionsScreen
-import com.example.btrapp.ui.theme.MyApplicationTheme
+import com.example.btrapp.blocking.AppLockRoutes
+import com.example.btrapp.blocking.appLockGraph
+import com.example.btrapp.core.ui.theme.MyApplicationTheme
+import com.example.btrapp.home.HubScreen
 import com.example.btrapp.ui.welcome.WelcomeScreen
 
 class MainActivity : ComponentActivity() {
@@ -70,16 +62,10 @@ private const val KEY_WELCOME_SEEN = "welcome_seen"
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     HOME("home", "Home", Icons.Default.Home),
-    APPS("apps", "Apps", Icons.Default.Lock),
-    RULES("rules", "Rules", Icons.Default.DateRange),
-    HISTORY("history", "History", Icons.AutoMirrored.Filled.List),
+    LOCK(AppLockRoutes.LOCK, "Lock", Icons.Default.Lock),
 }
 
-private const val RULE_EDITOR_ROUTE = "rule/{${RuleEditorViewModel.ARG_RULE_ID}}"
-
-private fun ruleEditorRoute(id: Long) = "rule/$id"
-
-private const val SESSIONS_ROUTE = "sessions"
+private val fullScreenRoutes = AppLockRoutes.fullScreen
 
 @Composable
 fun BtrApp() {
@@ -89,7 +75,7 @@ fun BtrApp() {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != RULE_EDITOR_ROUTE && currentRoute != SESSIONS_ROUTE) {
+            if (currentRoute !in fullScreenRoutes) {
                 NavigationBar {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
@@ -109,30 +95,9 @@ fun BtrApp() {
             modifier = Modifier.padding(padding),
         ) {
             composable(Tab.HOME.route) {
-                HomeScreen(onManageApps = { navController.navigateToTab(Tab.APPS.route) })
+                HubScreen(onOpenLock = { navController.navigateToTab(Tab.LOCK.route) })
             }
-            composable(Tab.APPS.route) { AppsScreen() }
-            composable(Tab.RULES.route) {
-                RulesScreen(
-                    onEditRule = { navController.navigate(ruleEditorRoute(it)) },
-                    onNewRule = {
-                        navController.navigate(ruleEditorRoute(RuleEditorViewModel.NEW_RULE))
-                    },
-                    onOpenSessions = { navController.navigate(SESSIONS_ROUTE) },
-                )
-            }
-            composable(SESSIONS_ROUTE) {
-                SessionsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(
-                RULE_EDITOR_ROUTE,
-                arguments = listOf(
-                    navArgument(RuleEditorViewModel.ARG_RULE_ID) { type = NavType.LongType },
-                ),
-            ) {
-                RuleEditorScreen(onDone = { navController.popBackStack() })
-            }
-            composable(Tab.HISTORY.route) { HistoryScreen() }
+            appLockGraph(navController)
         }
     }
 }
