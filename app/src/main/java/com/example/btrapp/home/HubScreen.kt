@@ -8,10 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.btrapp.blocking.ui.lock.LockSummaryCard
+import com.example.btrapp.habits.ui.TodayChecklistCard
 
 /** Home: a summary of every module. */
 @Composable
 fun HubScreen(
+    onOpenHabits: () -> Unit,
     onOpenLock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -20,6 +22,7 @@ fun HubScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        item { TodayChecklistCard(onOpenHabits = onOpenHabits) }
         item { LockSummaryCard(onOpenLock = onOpenLock) }
     }
 }

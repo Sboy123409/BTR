@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
@@ -31,6 +32,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.btrapp.blocking.AppLockRoutes
 import com.example.btrapp.blocking.appLockGraph
 import com.example.btrapp.core.ui.theme.MyApplicationTheme
+import com.example.btrapp.habits.HabitsRoutes
+import com.example.btrapp.habits.habitsGraph
 import com.example.btrapp.home.HubScreen
 import com.example.btrapp.ui.welcome.WelcomeScreen
 
@@ -62,10 +65,11 @@ private const val KEY_WELCOME_SEEN = "welcome_seen"
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     HOME("home", "Home", Icons.Default.Home),
+    HABITS(HabitsRoutes.HABITS, "Habits", Icons.Default.CheckCircle),
     LOCK(AppLockRoutes.LOCK, "Lock", Icons.Default.Lock),
 }
 
-private val fullScreenRoutes = AppLockRoutes.fullScreen
+private val fullScreenRoutes = AppLockRoutes.fullScreen + HabitsRoutes.fullScreen
 
 @Composable
 fun BtrApp() {
@@ -95,8 +99,12 @@ fun BtrApp() {
             modifier = Modifier.padding(padding),
         ) {
             composable(Tab.HOME.route) {
-                HubScreen(onOpenLock = { navController.navigateToTab(Tab.LOCK.route) })
+                HubScreen(
+                    onOpenHabits = { navController.navigateToTab(Tab.HABITS.route) },
+                    onOpenLock = { navController.navigateToTab(Tab.LOCK.route) },
+                )
             }
+            habitsGraph(navController)
             appLockGraph(navController)
         }
     }
