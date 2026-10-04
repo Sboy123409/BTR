@@ -29,6 +29,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.btrapp.avatar.AvatarRoutes
+import com.example.btrapp.avatar.avatarGraph
 import com.example.btrapp.blocking.AppLockRoutes
 import com.example.btrapp.blocking.appLockGraph
 import com.example.btrapp.core.ui.theme.MyApplicationTheme
@@ -69,7 +71,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
     LOCK(AppLockRoutes.LOCK, "Lock", Icons.Default.Lock),
 }
 
-private val fullScreenRoutes = AppLockRoutes.fullScreen + HabitsRoutes.fullScreen
+private val fullScreenRoutes = AppLockRoutes.fullScreen + HabitsRoutes.fullScreen + AvatarRoutes.fullScreen
 
 @Composable
 fun BtrApp() {
@@ -100,10 +102,12 @@ fun BtrApp() {
         ) {
             composable(Tab.HOME.route) {
                 HubScreen(
+                    onEditAvatar = { navController.navigate(AvatarRoutes.EDITOR) },
                     onOpenHabits = { navController.navigateToTab(Tab.HABITS.route) },
                     onOpenLock = { navController.navigateToTab(Tab.LOCK.route) },
                 )
             }
+            avatarGraph(navController)
             habitsGraph(navController)
             appLockGraph(navController)
         }

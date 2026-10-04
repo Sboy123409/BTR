@@ -14,9 +14,16 @@
 - [x] First-launch welcome screen (BTR poster)
 
 ## Module 2: Habit Tracker
-- [ ] Create and edit daily habits
-- [ ] Check-ins, streaks, history calendar
+- [x] Create and edit daily habits (every day or chosen weekdays)
+- [x] One-off to-dos planned for a specific day
+- [x] Check-ins and streaks (current + best), week strip to move between days
+- [ ] History calendar
 - [ ] Reminders/notifications
+
+## Avatar & Home
+- [x] Home hub: avatar, today's checklist, App Lock summary
+- [x] Comic avatar drawn in code, customisable (face, skin, hair, eyes, brows, outfit, extras, background)
+- [x] Avatar mood follows today's progress (sleepy / neutral / happy / ecstatic)
 
 ## Module 3: Integration
 - [ ] Completing habits earns unlock time
