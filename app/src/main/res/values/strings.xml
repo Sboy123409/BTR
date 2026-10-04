@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">BTR</string>
+    <string name="accessibility_service_label">BTR app blocker</string>
+    <string name="accessibility_service_description">Lets BTR see which app is open so it can cover apps you\'ve chosen to lock. BTR does not read screen content, typing or any personal data.</string>
+    <string name="accessibility_disclosure">BTR uses Android\'s Accessibility Service to detect which app is in the foreground. When an app you\'ve locked is opened, BTR shows a lock screen over it.\n\nBTR only reads the name of the open app. It does not read screen content, what you type, or any personal data, and nothing leaves your phone.\n\nOn the next screen, open \"BTR app blocker\" and turn it on.</string>
+    <string name="btr_slogan">The first two things you give, the last thing you get.</string>
+</resources>
