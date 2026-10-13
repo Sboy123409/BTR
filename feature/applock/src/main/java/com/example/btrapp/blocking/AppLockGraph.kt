@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.btrapp.blocking.data.BlockingRepository
 import com.example.btrapp.blocking.data.BtrDatabase
 import com.example.btrapp.blocking.domain.InstalledAppsProvider
+import com.example.btrapp.blocking.web.WebFilterSettings
 import kotlinx.coroutines.CoroutineScope
 
 /** The App Lock module's dependencies. The host app creates one and exposes it via [AppLockGraphProvider]. */
@@ -15,6 +16,8 @@ class AppLockGraph(context: Context, scope: CoroutineScope) {
     val blockingRepository = BlockingRepository(database.blockingDao(), scope)
 
     val installedApps = InstalledAppsProvider(context)
+
+    val webFilterSettings = WebFilterSettings(context)
 }
 
 /** Implemented by the [android.app.Application] so the module's screens and service can reach [AppLockGraph]. */

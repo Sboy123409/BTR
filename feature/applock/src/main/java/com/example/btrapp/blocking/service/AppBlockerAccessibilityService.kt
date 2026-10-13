@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.InputMethodManager
 import com.example.btrapp.blocking.appLockGraph
 import com.example.btrapp.blocking.data.BlockingRepository
@@ -36,6 +37,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var recheckJob: Job? = null
     private var lastBlockedPackage: String? = null
     private var lastBlockedAt = 0L
+    private var pipRecheckJob: Job? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -49,14 +51,25 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         neutralPackages = appLockGraph.installedApps.launcherPackages() + packageName
         // Rule changes (e.g. "Lock now") should take effect on the app that's already open.
         scope.launch {
-            repository.snapshot.collect { foregroundPackage?.let(::evaluate) }
+            repository.snapshot.collect {
+                foregroundPackage?.let(::evaluate)
+                checkPictureInPicture()
+            }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onWindowStateChanged(event)
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> checkPictureInPicture()
+        }
+    }
+
+    private fun onWindowStateChanged(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: return
         if (pkg in transientPackages) return
+        // Our block screen is up, so returning to the locked app (e.g. from Recents) must block again.
+        if (pkg == packageName) lastBlockedPackage = null
         if (pkg in neutralPackages) {
             foregroundPackage = null
             recheckJob?.cancel()
@@ -76,10 +89,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
             // Re-check exactly when the emergency grant runs out.
             is LockStatus.GrantActive -> scheduleRecheck(pkg, status.until - now)
-            // A schedule may start while the app is open, so keep polling covered apps.
+            // A schedule may start while the app is open, so wake up when the next one does.
             LockStatus.Unlocked ->
-                if (pkg in snapshot.coveredPackages) scheduleRecheck(pkg, IDLE_RECHECK_MS)
-                else recheckJob?.cancel()
+                LockPolicy.nextLockStart(pkg, now, snapshot)
+                    ?.let { scheduleRecheck(pkg, it - now) }
+                    ?: recheckJob?.cancel()
         }
     }
 
@@ -96,7 +110,37 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (pkg == lastBlockedPackage && now - lastBlockedAt < 1_000) return
         lastBlockedPackage = pkg
         lastBlockedAt = now
-        startActivity(BlockActivity.intent(this, pkg))
+        // Send the locked app to the background first, so nothing usable is left under the block screen.
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        scope.launch {
+            delay(HOME_SETTLE_MS)
+            startActivity(BlockActivity.intent(this@AppBlockerAccessibilityService, pkg))
+        }
+    }
+
+    /** Picture-in-picture windows float over every app (even the launcher), so close locked ones directly. */
+    private fun checkPictureInPicture() {
+        if (!::repository.isInitialized) return
+        val now = System.currentTimeMillis()
+        val snapshot = repository.snapshot.value
+        var nextCheck: Long? = null
+        windows.filter { it.isInPictureInPictureMode }.forEach { window ->
+            val root = window.root ?: return@forEach
+            val pkg = root.packageName?.toString() ?: return@forEach
+            when (val status = LockPolicy.status(pkg, now, snapshot)) {
+                is LockStatus.Locked -> root.performAction(AccessibilityNodeInfo.ACTION_DISMISS)
+                is LockStatus.GrantActive -> nextCheck = minOf(nextCheck ?: status.until, status.until)
+                LockStatus.Unlocked -> LockPolicy.nextLockStart(pkg, now, snapshot)
+                    ?.let { nextCheck = minOf(nextCheck ?: it, it) }
+            }
+        }
+        pipRecheckJob?.cancel()
+        nextCheck?.let { at ->
+            pipRecheckJob = scope.launch {
+                delay((at - now).coerceIn(500, IDLE_RECHECK_MS))
+                checkPictureInPicture()
+            }
+        }
     }
 
     override fun onInterrupt() = Unit
@@ -108,6 +152,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val IDLE_RECHECK_MS = 30_000L
+        private const val HOME_SETTLE_MS = 250L
 
         fun isEnabled(context: Context): Boolean {
             val enabled = Settings.Secure.getString(

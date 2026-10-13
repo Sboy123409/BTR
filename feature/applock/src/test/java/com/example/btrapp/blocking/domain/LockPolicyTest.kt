@@ -99,4 +99,23 @@ class LockPolicyTest {
         )
         assertEquals(LockStatus.Locked(at(5, 19), 9), LockPolicy.status(app, at(5, 16, 30), s, zone))
     }
+
+    @Test
+    fun `next lock start finds the upcoming schedule window`() {
+        val s = snapshot(weekdays9to5)
+        assertEquals(at(5, 9), LockPolicy.nextLockStart(app, at(5, 8, 30), s, zone))
+        // Inside today's window, the next start is tomorrow.
+        assertEquals(at(6, 9), LockPolicy.nextLockStart(app, at(5, 10), s, zone))
+        // Friday evening skips the weekend.
+        assertEquals(at(12, 9), LockPolicy.nextLockStart(app, at(9, 18), s, zone))
+    }
+
+    @Test
+    fun `next lock start ignores disabled rules and past sessions`() {
+        val session = LockRule(id = 3, type = RuleType.SESSION, startAt = at(5, 10), endAt = at(5, 12))
+        assertEquals(at(5, 10), LockPolicy.nextLockStart(app, at(5, 9), snapshot(session), zone))
+        assertEquals(null, LockPolicy.nextLockStart(app, at(5, 11), snapshot(session), zone))
+        val off = weekdays9to5.copy(enabled = false)
+        assertEquals(null, LockPolicy.nextLockStart(app, at(5, 8), snapshot(off), zone))
+    }
 }

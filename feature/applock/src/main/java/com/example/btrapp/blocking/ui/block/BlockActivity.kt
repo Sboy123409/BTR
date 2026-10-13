@@ -2,6 +2,8 @@ package com.example.btrapp.blocking.ui.block
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,11 +19,18 @@ class BlockActivity : ComponentActivity() {
 
     private var blockedPackage by mutableStateOf("")
 
+    /** Held while the block screen is up so music or video from the locked app pauses. */
+    private val audioFocus =
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setOnAudioFocusChangeListener {}
+            .build()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         blockedPackage = intent.getStringExtra(EXTRA_PACKAGE).orEmpty()
         if (blockedPackage.isEmpty()) return finish()
+        getSystemService(AudioManager::class.java).requestAudioFocus(audioFocus)
 
         setContent {
             MyApplicationTheme {
@@ -37,6 +46,11 @@ class BlockActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(EXTRA_PACKAGE)?.let { blockedPackage = it }
+    }
+
+    override fun onDestroy() {
+        getSystemService(AudioManager::class.java).abandonAudioFocusRequest(audioFocus)
+        super.onDestroy()
     }
 
     private fun goHome() {

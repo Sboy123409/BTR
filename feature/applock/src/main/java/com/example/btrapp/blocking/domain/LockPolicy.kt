@@ -53,6 +53,41 @@ object LockPolicy {
         }
     }
 
+    /** Earliest time after [now] that an enabled rule covering [packageName] starts, or null if none will. */
+    fun nextLockStart(
+        packageName: String,
+        now: Long,
+        snapshot: LockSnapshot,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Long? = snapshot.rules
+        .asSequence()
+        .filter { it.enabled && packageName in snapshot.ruleApps[it.id].orEmpty() }
+        .mapNotNull { nextStart(it, now, zone) }
+        .minOrNull()
+
+    private fun nextStart(rule: LockRule, now: Long, zone: ZoneId): Long? = when (rule.type) {
+        RuleType.SESSION -> rule.startAt?.takeIf { it > now }
+        RuleType.SCHEDULE -> {
+            val mask = rule.daysMask
+            val start = rule.startMinute
+            if (mask == null || start == null) {
+                null
+            } else {
+                val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+                (0L..7L).asSequence()
+                    .map { today.plusDays(it) }
+                    .filter { isDayOn(mask, it.dayOfWeek.value) }
+                    .map {
+                        ZonedDateTime.of(it, java.time.LocalTime.MIN, zone)
+                            .plusMinutes(start.toLong())
+                            .toInstant()
+                            .toEpochMilli()
+                    }
+                    .firstOrNull { it > now }
+            }
+        }
+    }
+
     /** End of the rule's currently active window, or null if the rule isn't active at [now]. */
     fun activeUntil(rule: LockRule, now: Long, zone: ZoneId = ZoneId.systemDefault()): Long? =
         when (rule.type) {

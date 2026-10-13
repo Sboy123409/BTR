@@ -132,6 +132,8 @@ internal fun LocksPage(
             }
         }
 
+        item { WebFilterCard() }
+
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Your apps", style = MaterialTheme.typography.titleMedium)

@@ -16,9 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.btrapp.blocking.appLockGraph
 import com.example.btrapp.blocking.domain.LockPolicy
 import com.example.btrapp.blocking.domain.LockStatus
 import com.example.btrapp.blocking.ui.common.containerFactory
+import com.example.btrapp.blocking.web.WebFilterVpnService
 import com.example.btrapp.core.ui.rememberNow
 
 /** App Lock at a glance for the Home hub: the blocking-off warning, status strip and Go Dark. */
@@ -66,5 +68,26 @@ fun LockSummaryCard(
                 onLockAll = { minutes -> viewModel.lockApps(minutes, blockedApps.map { it.packageName }) },
             )
         }
+        WebFilterStatusLine(onOpenLock)
+    }
+}
+
+@Composable
+private fun WebFilterStatusLine(onOpenLock: () -> Unit) {
+    val webFilter by LocalContext.current.appLockGraph.webFilterSettings.state.collectAsStateWithLifecycle()
+    val running by WebFilterVpnService.running.collectAsStateWithLifecycle()
+    val now = rememberNow(webFilter)
+    val (text, isProblem) = when {
+        !webFilter.enabled -> "Web filter is off" to false
+        !running -> "Web filter isn't running. Tap to turn it back on" to true
+        webFilter.isActive(now) && webFilter.disableAt != null -> "Web filter turning off soon" to false
+        else -> "Web filter on: adult sites blocked" to false
+    }
+    TextButton(onClick = onOpenLock) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        )
     }
 }
